@@ -16,7 +16,7 @@ ssh_credentials="$ssh_uname"
 echo $ssh_credentials
 
 read -p "Enter the new user name: " user_name
-ssh $ssh_credentials "cd /home; mkdir $user_name"
+ssh $ssh_credentials "cd /home; mkdir $user_name; echo 'list of users:'; ls"
 
 read -p "enter the new user password: " password
 
