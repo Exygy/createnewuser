@@ -7,89 +7,66 @@
 # With thanks to https://gist.github.com/raw/4223476
 #
 # Usage: 
-# @TODO: rewrite instructions
+# sh createNewSSHUser.sh
 # #############################################################################
 #
 
-read -p "Enter the ssh login for the remote server you wish to create the user on (e.g  user@server.com): "  ssh_uname
-ssh_credentials="$ssh_uname"
-echo $ssh_credentials
-
+# Get ssh login credentials, new user name, and ssh key locations
+read -p "Enter the ssh login for the remote server you wish to create the user on (e.g  user@server.com): " ssh_credentials
+ssh_credentials='root@184.173.120.23'
 read -p "Enter the new user name: " user_name
-ssh $ssh_credentials "cd /home; mkdir $user_name; echo 'list of users:'; ls"
+read -p "Enter the new user password: " password
 
-read -p "enter the new user password: " password
+ssh_pub_default="$HOME/.ssh/id_rsa.pub"
+read -p "Enter the path to the ssh public key [$ssh_pub_default]: " ssh_pub_path
+
+ssh_priv_default="$HOME/.ssh/id_rsa"
+echo "Please note: You don't need to upload your private key.  In fact, you probably shouldn't."
+echo "For more information: https://www.gnupg.org/gph/en/manual/c481.html#AEN506"
+echo "Enter 'no' to ignore the private key."
+read -p "Enter the path to the ssh *private* key [$ssh_priv_default]: " ssh_priv_path
+
+#Read in public key
+ssh_pub_path="${ssh_pub_path:-$ssh_pub_default}"
+ssh_pub_file=$(<$ssh_pub_path)
+
+#If provided, read in private key
+if [ "$ssh_priv_path" != "no" ]; 
+then
+  ssh_priv_path="${ssh_priv_path:-$ssh_priv_default}"
+  ssh_priv_file=$(<$ssh_priv_path)
+fi
+
+#Begin SSH session
+echo "Please authenticate for $ssh_credentials: "
+ssh -t -t $ssh_credentials /bin/bash << EOF
+
+  #Create user
+  useradd -m -G sudo,www-data ${user_name}
+  echo -e "$password\n$password\n" | passwd $user_name 
+  chsh -s /bin/bash ${user_name}
+
+  #Create SSH directory
+  mkdir /home/${user_name}/.ssh
+  cd /home/${user_name}/.ssh
+
+  #Copy over private key
+  if [ "$ssh_priv_path" != "no" ]; 
+  then
+    touch id_rsa
+    echo "${ssh_priv_file}" > id_rsa 
+  fi
+
+  #Copy over public key
+  touch authorized_keys
+  echo "${ssh_pub_file}" > authorized_keys
+
+  #Set SSH key permissions
+  chmod 700 /home/${user_name}/.ssh
+
+  #Change file/folder ownership to new user
+  chown -R ${user_name}:${user_name} /home/${user_name}
+  exit
+EOF
 
 exit
-
-export A_NEW_USER=$1
-export NEW_USER_PWD=$1
-#
-echo New User is $A_NEW_USER identified by $NEW_USER_PWD
-#
-echo "Get ${A_NEW_USER} home directory .. . . . . . . . "
-export A_NEW_USER_HOME=$( grep "${A_NEW_USER}" /etc/passwd | awk -F: '{print $6}' )
-echo "New user's home directory is ${A_NEW_USER_HOME}"
-#
-if [ "XX${A_NEW_USER_HOME}" == "XX" ]; then
-#
-echo "Create admin group ............................................"
-addgroup admin
-#
-echo "Create a full privileges admin user ..........................."
-export PASS_HASH=$(perl -e 'print crypt($ARGV[0], "password")' "$NEW_USER_PWD")
-echo ${PASS_HASH}
-# addgroup sudo
-useradd -Ds /bin/bash
-useradd -m -G sudo,www-data -p ${PASS_HASH} ${A_NEW_USER}
-passwd -e ${A_NEW_USER}
-#
-A_NEW_USER_HOME=/home/${A_NEW_USER}
-chown -r ${A_NEW_USER} ${A_NEW_USER_HOME}
-chsh -s /bin/bash ${A_NEW_USER}
-cp /home/koppie/.bash_profile ${A_NEW_USER_HOME}
-chmod 666 ${A_NEW_USER_HOME}/.bash_profile
-else
-echo "The ${A_NEW_USER} user account is already configured in ${A_NEW_USER_HOME} . . . "
-fi
-#
-echo "................................................................"
-echo "Prepare for SSH tasks"
-echo "................................................................"
-#
-apt-get install -y openssh-server
-#
-export A_NEW_USER_SSH_DIR=${A_NEW_USER_HOME}/.ssh
-mkdir -p ${A_NEW_USER_SSH_DIR}
-chmod 700 ${A_NEW_USER_SSH_DIR}
-#
-pushd ${A_NEW_USER_SSH_DIR}
-#
- #
- echo "................................................................"
- echo "Generate SSH key pair for ${A_NEW_USER}"
- echo "................................................................"
- rm -f id_rsa*
- ssh-keygen -f id_rsa -t rsa -N '' -C "${A_NEW_USER}@${A_NEW_USER}.me"
- #
-#
-popd
-#
-echo "................................................................"
-echo "Assign correct ownership ......................................"
-echo "................................................................"
-chown -R ${A_NEW_USER}:${A_NEW_USER} /home/${A_NEW_USER}
-#
-#
-echo "................................................................"
-echo "Here is ${A_NEW_USER}'s public key"
-echo "................................................................"
-echo " "
-cat ${A_NEW_USER_SSH_DIR}/id_rsa.pub
-echo " "
-echo " "
-echo " "
-echo Done creating new user ${A_NEW_USER}
-echo   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-exit 0;
