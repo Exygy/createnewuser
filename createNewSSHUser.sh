@@ -13,7 +13,6 @@
 
 # Get ssh login credentials, new user name, and ssh key locations
 read -p "Enter the ssh login for the remote server you wish to create the user on (e.g  user@server.com): " ssh_credentials
-ssh_credentials='root@184.173.120.23'
 read -p "Enter the new user name: " user_name
 read -p "Enter the new user password: " password
 
